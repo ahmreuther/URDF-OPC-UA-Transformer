@@ -6,9 +6,8 @@ import inspect
 from asyncua import Client
 from asyncua.ua import ObjectIds
 from asyncua.common.xmlexporter import XmlExporter  
-
-
-
+import argparse
+from collections import Counter
 from asyncua import ua, Server
 from urdfpy import URDF
 from asyncua.ua.uaerrors import UaStatusCodeError
@@ -31,6 +30,84 @@ logging.getLogger("asyncua").setLevel(logging.WARNING)
 
 
 # ----------------------------- Helper --------------------------------
+
+def _derive_mesh_dirs_from_urdf(urdf_path: str) -> tuple[str, str]:
+    """
+    Liest alle <mesh filename="..."> aus der URDF und bestimmt die typischen Basispfade
+    für Visuals und Collisions relativ zur URDF. Fällt robust zurück.
+    """
+    urdf_abs = os.path.abspath(urdf_path)
+    urdf_dir = os.path.dirname(urdf_abs)
+    urdf = URDF.load(urdf_abs)
+
+    def norm_rel(p: str) -> str:
+        # package://<pkg>/... entfernen und normalisieren
+        rel = _strip_package_prefix(p).replace("\\", "/")
+        # führende ./ entfernen
+        if rel.startswith("./"):
+            rel = rel[2:]
+        return rel
+
+    visual_dirs = []
+    collision_dirs = []
+
+    for link in urdf.links:
+        # Visuals
+        for vis in getattr(link, "visuals", []) or []:
+            geom = getattr(vis, "geometry", None)
+            if not geom:
+                continue
+            filenames = []
+            mesh = getattr(geom, "mesh", None)
+            if mesh is not None:
+                filenames = to_list(getattr(mesh, "filename", None))
+            else:
+                filenames = to_list(getattr(geom, "filename", None))
+            for fn in filenames:
+                if not fn:
+                    continue
+                rel = norm_rel(str(fn))
+                d = os.path.dirname(rel)
+                parts = d.split("/") if d else []
+                if "visual" in parts:
+                    d = "/".join(parts[:parts.index("visual")+1])  # .../visual
+                visual_dirs.append(d or ".")
+
+        # Collisions
+        for col in getattr(link, "collisions", []) or []:
+            geom = getattr(col, "geometry", None)
+            if not geom:
+                continue
+            filenames = []
+            mesh = getattr(geom, "mesh", None)
+            if mesh is not None:
+                filenames = to_list(getattr(mesh, "filename", None))
+            else:
+                filenames = to_list(getattr(geom, "filename", None))
+            for fn in filenames:
+                if not fn:
+                    continue
+                rel = norm_rel(str(fn))
+                d = os.path.dirname(rel)
+                parts = d.split("/") if d else []
+                if "collision" in parts:
+                    d = "/".join(parts[:parts.index("collision")+1])  # .../collision
+                collision_dirs.append(d or ".")
+
+    def pick_dir(cands: list[str], default_rel: str) -> str:
+        if not cands:
+            return os.path.join(urdf_dir, "meshes", default_rel)
+        rel_dir = Counter(cands).most_common(1)[0][0]  # häufigster
+        abs_dir = os.path.abspath(os.path.join(urdf_dir, rel_dir))
+        return abs_dir
+
+    vis_dir = pick_dir(visual_dirs, "visual")
+    col_dir = pick_dir(collision_dirs, "collision")
+
+    # Falls Ordner nicht existieren, nicht hart abbrechen – create & weiter
+    os.makedirs(vis_dir, exist_ok=True)
+    os.makedirs(col_dir, exist_ok=True)
+    return vis_dir, col_dir
 
 def _guess_mime_from_ext(path: str) -> str:
     ext = pathlib.Path(path).suffix.lower()
@@ -1384,7 +1461,6 @@ async def _collect_all_nodes(client: Client, allowed_ns: set[int] | None = None)
     return result
 
 
-from asyncua.common.xmlexporter import XmlExporter
 
 async def export_with_opcua_client(endpoint_url: str, out_path: str,
                                    namespace: int | None = None,
@@ -1412,6 +1488,23 @@ async def export_with_opcua_client(endpoint_url: str, out_path: str,
 
 # ----------------------------- Server-Start --------------------------------
 async def main():
+    # --- CLI ---
+    parser = argparse.ArgumentParser(description="URDF -> OPC UA (und NodeSet-Export)")
+    parser.add_argument("urdf_path", help="Pfad zur URDF-Datei")
+    parser.add_argument("robot_xml", help="Pfad zur Roboter-Instanz-XML (z. B. Franka.xml)")
+    args = parser.parse_args()
+
+    URDF_PATH = os.path.abspath(args.urdf_path)
+    ROBOT_XML = os.path.abspath(args.robot_xml)
+
+    if not os.path.isfile(URDF_PATH):
+        raise FileNotFoundError(f"URDF nicht gefunden: {URDF_PATH}")
+    if not os.path.isfile(ROBOT_XML):
+        raise FileNotFoundError(f"Roboter-Instanz-XML nicht gefunden: {ROBOT_XML}")
+
+    # Mesh-Ordner aus URDF bestimmen
+    VISUAL_MESH_DIR, COLLISION_MESH_DIR = _derive_mesh_dirs_from_urdf(URDF_PATH)
+
     server = Server()
     await server.init()
     server.set_endpoint("opc.tcp://127.0.0.1:4840")
@@ -1421,36 +1514,37 @@ async def main():
     for f in ["Devices.xml", "Robots.xml"]:
         await server.import_xml(f)
 
-    # Instanzen laden (z. B. Franka)
-    inst_nodes = await server.import_xml("Franka.xml")
+    # Instanzen laden (dynamisch per CLI)
+    inst_nodes = await server.import_xml(ROBOT_XML)
     if not inst_nodes:
-        raise RuntimeError("Keine Instanzen aus Franka.xml importiert.")
+        raise RuntimeError(f"Keine Instanzen aus {ROBOT_XML} importiert.")
 
     # *** Wichtig: Das *MotionDevice* bestimmen ***
-    device_node = await resolve_motion_device_node(
-        server, inst_nodes, DEVICE_NAME
-    )
+    device_node = await resolve_motion_device_node(server, inst_nodes, DEVICE_NAME)
 
-    # URDF-Struktur unter dem MotionDevice anlegen
-    URDF_PATH = r"C:\Users\adria\Nextcloud\myStuff\Programmierprojekte\RoboSkills\AI in Process Automation\webskillcomposition\frontend\public\urdf\fr3_description\urdf\fr3.urdf"
-    VISUAL_MESH_DIR   = r"C:\Users\adria\Nextcloud\myStuff\Programmierprojekte\RoboSkills\AI in Process Automation\webskillcomposition\frontend\public\urdf\fr3_description\meshes\visual"
-    COLLISION_MESH_DIR= r"C:\Users\adria\Nextcloud\myStuff\Programmierprojekte\RoboSkills\AI in Process Automation\webskillcomposition\frontend\public\urdf\fr3_description\meshes\collision"
-
+    # URDF-Struktur unter dem MotionDevice anlegen (mit automatisch erkannten Mesh-Dirs)
     await build_urdf_structure(server, device_node, URDF_PATH, VISUAL_MESH_DIR, COLLISION_MESH_DIR)
 
-    out_file = "Franka_URDF_enriched.NodeSet2.xml"
+    # Export-Dateiname dynamisch aus der Instanz-XML ableiten
+    base = os.path.splitext(os.path.basename(ROBOT_XML))[0]
+    out_file = f"{base}_URDF_enriched.NodeSet2.xml"
     endpoint = "opc.tcp://127.0.0.1:4840"
 
     async with server:
-        # kurz warten, bis der Listener wirklich steht
         await asyncio.sleep(0.3)
-        # kompletter Export (ohne Namespace-Filter):
-        print("Exportiere Nodeset. Bitte warten...")
+        print("Exportiere Nodeset (inkl. Werte). Bitte warten...")
         await export_with_opcua_client(endpoint, out_file, include_values=True)
-        print(f"Nodeset exportiert nach: {out_file}")
+        print(f"Nodeset exportiert nach: {os.path.abspath(out_file)}")
+        # Server laufen lassen (falls gewünscht); hier kurz halten oder entfernen
         while True:
             await asyncio.sleep(1)
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+    # Aufruf aus terminal:
+    # python Transformer_URDF_2_OPCUA.py "C:\Pfad\zu\deinem\roboter.urdf" "C:\Pfad\zur\Instanz\MeinRoboter.xml"
+
+

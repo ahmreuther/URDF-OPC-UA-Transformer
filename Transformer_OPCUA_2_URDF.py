@@ -578,7 +578,36 @@ async def export_urdf_from_server(endpoint: str, out_urdf_path: str):
 
 # ----------------- CLI-Beispiel -----------------
 if __name__ == "__main__":
-    # Passe Endpoint & Pfad an:
-    ENDPOINT = "opc.tcp://127.0.0.1:4840"
-    OUT_URDF = "recovered_robot.urdf"
-    asyncio.run(export_urdf_from_server(ENDPOINT, OUT_URDF))
+    import argparse, sys
+
+    parser = argparse.ArgumentParser(
+        description="Exportiert URDF + Meshes aus einem laufenden OPC UA Server."
+    )
+    parser.add_argument(
+        "endpoint",
+        help="OPC UA Endpoint, z.B. opc.tcp://127.0.0.1:4840",
+    )
+    parser.add_argument(
+        "-o", "--out",
+        dest="out_urdf",
+        default="recovered_robot.urdf",
+        help=("Ziel-URDF-Pfad (Datei oder Basisname). "
+              "Die Ausgaben landen in <robot>_description/ mit meshes/visuals und meshes/collisions. "
+              "Standard: recovered_robot.urdf im aktuellen Verzeichnis."),
+    )
+
+    args = parser.parse_args()
+    try:
+        asyncio.run(export_urdf_from_server(args.endpoint, args.out_urdf))
+    except Exception as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)
+
+
+        # Verwendung
+
+        # Standard: schreibt recovered_robot.urdf und erzeugt <robot>_description/...
+        # python Transformer_OPCUA_2_URDF.py opc.tcp://127.0.0.1:4840
+
+        # # Mit explizitem Zielpfad/Dateiname
+        # python Transformer_OPCUA_2_URDF.py opc.tcp://127.0.0.1:4840 -o C:\pfad\zu\out\my_robot.urdf
