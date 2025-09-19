@@ -1,93 +1,234 @@
-# URDF-OPCUA Transformer
+# URDF ↔ OPC UA Transformer
+
+Two command-line tools to move a robot model back and forth between **URDF** and an **OPC UA Robotics** address space:
+
+- `Transformer_URDF_2_OPCUA.py` — **URDF ➜ OPC UA**
+- `Transformer_OPCUA_2_URDF.py` — **OPC UA ➜ URDF**
+
+Both scripts are designed for reproducible, file-based pipelines and work on Windows, Linux, and macOS.
+
+---
+
+## Features
+
+- **URDF ➜ OPC UA**
+  - Creates a Robotics Companion-Spec structure under a `MotionDevice`.
+  - Imports a robot *instance* XML (e.g., `Franka.xml`) into the server.
+  - Uploads mesh assets (STL/DAE/…) as OPC UA **FileType** nodes with metadata (`MimeType`, `Size`, `sha256`, `LocalPath`).
+  - Automatically derives **visual** and **collision** mesh directories from the **relative paths inside the URDF**.
+
+- **OPC UA ➜ URDF**
+  - Connects to a running OPC UA server, discovers a `MotionDevice`, and reconstructs a URDF.
+  - Exports mesh files to a compact directory structure and references them with **relative paths** in the URDF:
+
+    ```
+    <robot>_description/
+      ├─ <robot>.urdf
+      └─ meshes/
+         ├─ visuals/
+         └─ collisions/
+    ```
+
+- **Joint type preservation**
+  - Maps `MotionProfile` to URDF joint types:
+    - `1 → revolute`, `2 → continuous`, `3 → prismatic`
+    - Otherwise uses a fallback string property **`JointType`** to avoid losing information (`fixed` as last resort).
+
+---
+
+## Requirements
+- **Python** ≥ 3.10
+- **Packages**
+  ```bash
+  pip install asyncua urdfpy numpy
+  ```
+---
 
 
+ ### Robotics Nodeset XMLs
 
-## Getting started
+* `Devices.xml` (OPC UA DI)
+* `Robots.xml` (OPC UA Robotics)
+* A robot **instance** XML (e.g., `Franka.xml`) that defines the concrete `MotionDevice` or `MotionDeviceSystem` you want to enrich with URDF content.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+> Place these XML files where the script can read them (same folder as the script is convenient).
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://git.rwth-aachen.de/ai-in-production/project-repositories/urdf-opcua-transformer.git
-git branch -M main
-git push -uf origin main
-```
-
-## Integrate with your tools
-
-- [ ] [Set up project integrations](https://git.rwth-aachen.de/ai-in-production/project-repositories/urdf-opcua-transformer/-/settings/integrations)
-
-## Collaborate with your team
-
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+---
 
 ## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+
+1. Ensure Python ≥ 3.10.
+2. Install dependencies:
+
+   ```bash
+   pip install asyncua urdfpy numpy
+   ```
+3. Put the two scripts into your project:
+
+   * `Transformer_URDF_2_OPCUA.py`
+   * `Transformer_OPCUA_2_URDF.py`
+4. Ensure `Devices.xml`, `Robots.xml`, and your instance XML (e.g., `Franka.xml`) are available.
+
+---
 
 ## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### 1) URDF ➜ OPC UA
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+**Script:** `Transformer_URDF_2_OPCUA.py`
+Starts a local OPC UA server, imports the Robotics type and instance XMLs, then builds a URDF-based structure under the detected `MotionDevice`.
+
+**CLI**
+
+```bash
+python Transformer_URDF_2_OPCUA.py "<PATH_TO_URDF_FILE>" "<PATH_TO_ROBOT_INSTANCE_XML>"
+```
+
+**Arguments (required)**
+
+* `PATH_TO_URDF_FILE` — e.g., `C:\robots\fr3_description\urdf\fr3.urdf`
+* `PATH_TO_ROBOT_INSTANCE_XML` — e.g., `C:\nodesets\Franka.xml`
+
+**Behavior**
+
+* Server listens at `opc.tcp://127.0.0.1:4840` by default.
+* **Visual/Collision mesh directories are derived automatically** from the **relative mesh paths inside the URDF** (no extra CLI flags needed).
+* Mesh assets (STL/DAE/…) are uploaded as OPC UA **FileType** nodes with metadata (`MimeType`, `Size`, `sha256`, `LocalPath`). If FileType methods are not available, the script falls back to a `Content` (ByteString) property.
+
+**Examples**
+
+```bash
+# Windows
+python Transformer_URDF_2_OPCUA.py "C:\robots\fr3_description\urdf\fr3.urdf" "C:\nodesets\Franka.xml"
+
+# Linux / macOS
+python Transformer_URDF_2_OPCUA.py "/home/me/robots/fr3_description/urdf/fr3.urdf" "/home/me/nodesets/Franka.xml"
+```
+
+---
+
+### 2) OPC UA ➜ URDF
+
+**Script:** `Transformer_OPCUA_2_URDF.py`
+Connects to a running OPC UA server, discovers a `MotionDevice`, exports mesh files back to disk, and writes a URDF that references them **relatively**.
+
+**CLI**
+
+```bash
+python Transformer_OPCUA_2_URDF.py "<OPC_UA_ENDPOINT>" -o "<OUT_URDF_PATH>"
+```
+
+**Arguments**
+
+* `OPC_UA_ENDPOINT` (required) — e.g., `opc.tcp://127.0.0.1:4840`
+* `-o, --out` (optional) — Output URDF path or basename (default: `recovered_robot.urdf` in the current directory)
+
+**Output layout**
+
+```
+<robot>_description/
+  ├─ <robot>.urdf
+  └─ meshes/
+     ├─ visuals/
+     └─ collisions/
+```
+
+URDF `<mesh filename="...">` attributes use **relative paths** into these folders.
+
+**Examples**
+
+```bash
+python Transformer_OPCUA_2_URDF.py "opc.tcp://127.0.0.1:4840"
+python Transformer_OPCUA_2_URDF.py "opc.tcp://127.0.0.1:4840" -o "C:\tmp\recovered_robot.urdf"
+python Transformer_OPCUA_2_URDF.py "opc.tcp://127.0.0.1:4840" --out "./export/recovered_robot.urdf"
+```
+
+---
+
+## Typical Roundtrip
+
+1. **Load URDF into OPC UA**
+
+   ```bash
+   python Transformer_URDF_2_OPCUA.py "C:\...\fr3.urdf" "C:\...\Franka.xml"
+   ```
+2. Inspect/validate the address space with your OPC UA client (e.g., UaExpert).
+3. **Rebuild URDF from OPC UA**
+
+   ```bash
+   python Transformer_OPCUA_2_URDF.py "opc.tcp://127.0.0.1:4840" -o "C:\tmp\recovered_robot.urdf"
+   ```
+
+---
+
+## How It Works (Key Points)
+
+* **Meshes in OPC UA**
+
+  * Each `Mesh` node gets a `Files` folder containing one or more **FileType** objects holding the bytes.
+  * Transfer uses standard `Open/Read/Write/Close`. If missing, a fallback `Content` (ByteString) property is used.
+  * Metadata captured: `MimeType`, `Size`, `sha256`, `LocalPath`.
+
+* **Meshes back to disk**
+
+  * The exporter prefers FileType methods; otherwise attempts `Content`.
+  * If server content is missing, it tries `LocalPath` or the original `filename` when locally accessible.
+  * Files are written under `<robot>_description/meshes/{visuals|collisions}/…` and referenced **relatively**.
+
+* **Joint types**
+
+  * `MotionProfile` → URDF:
+
+    * `1 = revolute`, `2 = continuous`, `3 = prismatic`
+  * If unknown/`0`, a companion string property **`JointType`** is used to preserve intent; final fallback is `fixed`.
+
+* **Mesh directory derivation**
+
+  * The URDF ➜ OPC UA script scans `<mesh filename="...">` paths and infers the **visual** and **collision** roots from those **relative paths**.
+
+---
+
+## Troubleshooting
+
+* **`BadNodeIdExists` during XML import**
+
+  * Cause: NodeId collisions when importing an instance XML more than once or against a server already containing those NodeIds.
+  * Fixes:
+
+    * Start from a fresh server instance.
+    * Ensure you aren’t importing the same instance XML multiple times.
+    * If you control the XML, consider letting the SDK auto-assign NodeIds or adjust the NodeId policy.
+
+* **Meshes not exported back**
+
+  * Check that the server supports FileType methods or that a `Content` property exists.
+  * If neither exists, the exporter attempts `LocalPath` or original `filename` paths—ensure those are reachable from the exporting machine.
+
+* **Wrong or missing units**
+
+  * The scripts record EngineeringUnits where available, but URDF only accepts certain attributes. Verify your downstream toolchains.
+
+* **Can’t find MotionDevice**
+
+  * The OPC UA ➜ URDF script does a BFS under `Objects`:
+
+    * Looks for `MotionDeviceSystem` → `MotionDevices` → first device.
+    * As a heuristic, any object with an `Axes` child is considered a device.
+  * If your model deviates, you may need to adapt discovery logic.
+
+---
+
+## Known Limitations
+
+* Complex, server-specific browsing rules or access controls may block reading FileType content.
+* Some custom Robotics variants/namespaces may require adapting browse names or type resolution.
+* Only a subset of URDF elements is round-tripped (focus on links/joints, geometry, and common metadata).
+
+---
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Issues and PRs are welcome
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+---
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
