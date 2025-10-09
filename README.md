@@ -2,8 +2,8 @@
 
 Two command-line tools to move a robot model back and forth between **URDF** and an **OPC UA Robotics** address space:
 
-- `Transformer_URDF_2_OPCUA.py` — **URDF ➜ OPC UA**
-- `Transformer_OPCUA_2_URDF.py` — **OPC UA ➜ URDF**
+- `URDF_2_OPCUA.py` — **URDF ➜ OPC UA**
+- `OPCUA_2_URDF.py` — **OPC UA ➜ URDF**
 
 Both scripts are designed for reproducible, file-based pipelines and work on Windows, Linux, and macOS.
 
@@ -65,8 +65,8 @@ Both scripts are designed for reproducible, file-based pipelines and work on Win
    ```
 3. Put the two scripts into your project:
 
-   * `Transformer_URDF_2_OPCUA.py`
-   * `Transformer_OPCUA_2_URDF.py`
+   * `URDF_2_OPCUA.py`
+   * `OPCUA_2_URDF.py`
 4. Ensure `Devices.xml`, `Robots.xml`, and your instance XML (e.g., `Franka.xml`) are available.
 
 ---
@@ -75,13 +75,13 @@ Both scripts are designed for reproducible, file-based pipelines and work on Win
 
 ### 1) URDF ➜ OPC UA
 
-**Script:** `Transformer_URDF_2_OPCUA.py`
+**Script:** `URDF_2_OPCUA.py`
 Starts a local OPC UA server, imports the Robotics type and instance XMLs, then builds a URDF-based structure under the detected `MotionDevice`.
 
 **CLI**
 
 ```bash
-python Transformer_URDF_2_OPCUA.py "<PATH_TO_URDF_FILE>" "<PATH_TO_ROBOT_INSTANCE_XML>"
+python URDF_2_OPCUA.py "<PATH_TO_URDF_FILE>" "<PATH_TO_ROBOT_INSTANCE_XML>"
 ```
 
 **Arguments (required)**
@@ -99,23 +99,23 @@ python Transformer_URDF_2_OPCUA.py "<PATH_TO_URDF_FILE>" "<PATH_TO_ROBOT_INSTANC
 
 ```bash
 # Windows
-python Transformer_URDF_2_OPCUA.py "C:\robots\fr3_description\urdf\fr3.urdf" "C:\nodesets\Franka.xml"
+python URDF_2_OPCUA.py "C:\robots\fr3_description\urdf\fr3.urdf" "C:\nodesets\Franka.xml"
 
 # Linux / macOS
-python Transformer_URDF_2_OPCUA.py "/home/me/robots/fr3_description/urdf/fr3.urdf" "/home/me/nodesets/Franka.xml"
+python URDF_2_OPCUA.py "/home/me/robots/fr3_description/urdf/fr3.urdf" "/home/me/nodesets/Franka.xml"
 ```
 
 ---
 
 ### 2) OPC UA ➜ URDF
 
-**Script:** `Transformer_OPCUA_2_URDF.py`
+**Script:** `OPCUA_2_URDF.py`
 Connects to a running OPC UA server, discovers a `MotionDevice`, exports mesh files back to disk, and writes a URDF that references them **relatively**.
 
 **CLI**
 
 ```bash
-python Transformer_OPCUA_2_URDF.py "<OPC_UA_ENDPOINT>" -o "<OUT_URDF_PATH>"
+python OPCUA_2_URDF.py "<OPC_UA_ENDPOINT>" -o "<OUT_URDF_PATH>"
 ```
 
 **Arguments**
@@ -138,9 +138,9 @@ URDF `<mesh filename="...">` attributes use **relative paths** into these folder
 **Examples**
 
 ```bash
-python Transformer_OPCUA_2_URDF.py "opc.tcp://127.0.0.1:4840"
-python Transformer_OPCUA_2_URDF.py "opc.tcp://127.0.0.1:4840" -o "C:\tmp\recovered_robot.urdf"
-python Transformer_OPCUA_2_URDF.py "opc.tcp://127.0.0.1:4840" --out "./export/recovered_robot.urdf"
+python OPCUA_2_URDF.py "opc.tcp://127.0.0.1:4840"
+python OPCUA_2_URDF.py "opc.tcp://127.0.0.1:4840" -o "C:\tmp\recovered_robot.urdf"
+python OPCUA_2_URDF.py "opc.tcp://127.0.0.1:4840" --out "./export/recovered_robot.urdf"
 ```
 
 ---
@@ -150,13 +150,13 @@ python Transformer_OPCUA_2_URDF.py "opc.tcp://127.0.0.1:4840" --out "./export/re
 1. **Load URDF into OPC UA**
 
    ```bash
-   python Transformer_URDF_2_OPCUA.py "C:\...\fr3.urdf" "C:\...\Franka.xml"
+   python URDF_2_OPCUA.py "C:\...\fr3.urdf" "C:\...\Franka.xml"
    ```
 2. Inspect/validate the address space with your OPC UA client (e.g., UaExpert).
 3. **Rebuild URDF from OPC UA**
 
    ```bash
-   python Transformer_OPCUA_2_URDF.py "opc.tcp://127.0.0.1:4840" -o "C:\tmp\recovered_robot.urdf"
+   python OPCUA_2_URDF.py "opc.tcp://127.0.0.1:4840" -o "C:\tmp\recovered_robot.urdf"
    ```
 
 ---
