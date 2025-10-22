@@ -16,7 +16,7 @@ def _prepare_urdf_root(out_urdf_path: str, robot_name: str) -> tuple[str, str, s
     urdf_root_dir = os.path.join(base_dir, f"{robot_name}_description")
     os.makedirs(urdf_root_dir, exist_ok=True)
 
-    # URDF-Dateiname: falls keine .urdf-Endung übergeben, robot_name verwenden
+    # URDF filename: if no .urdf extension is provided, use robot_name
     if not out_urdf_path.lower().endswith(".urdf"):
         out_urdf_final = os.path.join(urdf_root_dir, f"{robot_name}.urdf")
     else:
@@ -48,7 +48,6 @@ def _ext_from_name_or_mime(name: str | None, mime: str | None) -> str:
         return _MIME_TO_EXT[mime]
     return ".stl"
 
-# -------- Pfade & Ordner --------
 def _ensure_mesh_dirs(out_urdf_path: str):
     base_dir = os.path.dirname(os.path.abspath(out_urdf_path)) or "."
     meshes_dir = os.path.join(base_dir, "meshes")
@@ -61,7 +60,7 @@ def _ensure_mesh_dirs(out_urdf_path: str):
 
 
 
-# -------- FileType lesen (Open/Read/Close) --------
+# -------- Read FileType (Open/Read/Close) --------
 async def _call_method_by_name(obj, method_name, *args):
     for ch in await obj.get_children():
         if await ch.read_node_class() == ua.NodeClass.Method:
@@ -122,7 +121,7 @@ async def _read_filetype_bytes(file_node, chunk=64*1024) -> bytes | None:
         pass
     return None
 
-# -------- Mesh-Datei aus Mesh-Node extrahieren & speichern --------
+# -------- Extract & save mesh file from mesh node --------
 async def _first_filetype_child(mesh_node):
     for ch in await mesh_node.get_children():
         bn = await ch.read_browse_name()
@@ -148,7 +147,7 @@ async def _collect_file_meta(file_node):
 async def _export_mesh_asset(mesh_node, target_dir: str, basename_hint: str, urdf_root_dir: str) -> str | None:
     fnode = await _first_filetype_child(mesh_node)
 
-    # Mesh/filename auslesen
+    # read Mesh/filename 
     filename_list = None
     for ch in await mesh_node.get_children():
         if await ch.read_node_class() == ua.NodeClass.Variable:
@@ -181,12 +180,12 @@ async def _export_mesh_asset(mesh_node, target_dir: str, basename_hint: str, urd
         return None
 
     out_path.write_bytes(data)
-    # relativer Pfad zur URDF (urdf_root_dir als Bezug)
+    # relative path to URDF (urdf_root_dir as reference)
     rel = os.path.relpath(out_path, start=urdf_root_dir).replace("\\", "/")
     return rel
 
 
-# ----------------- kleine XML-Helpers -----------------
+# ----------------- Small XML helpers -----------------
 def _fmt_xyz(vals: Optional[List[float]]) -> Optional[str]:
     if not vals: return None
     return " ".join(f"{float(v):.9g}" for v in vals)
@@ -247,15 +246,12 @@ async def find_motion_device(client) -> Optional[object]:
             # MotionDeviceSystem?
             mds = await get_child_by_name(cur, "MotionDevices")
             if mds:
-                # nimm erstes Object darunter
                 for _, dev in await list_children(mds):
-                    # nur echte Objekte
                     if await dev.read_node_class() == ua.NodeClass.Object:
                         return dev
         except Exception:
             pass
 
-        # Heuristik: hat 'Axes'?
         try:
             if await get_child_by_name(cur, "Axes"):
                 return cur
@@ -269,16 +265,16 @@ async def find_motion_device(client) -> Optional[object]:
             pass
     return None
 
-# ----------------- Mesh-Pfad aus Mesh-Knoten ermitteln -----------------
+# ----------------- Determine mesh path from mesh nodes ------------------
 async def resolve_mesh_filename(mesh_node) -> Optional[str]:
-    # 1) bevorzugt: Mesh/filename (Liste) → erstes Element
+    # 1) preferred: Mesh/filename (list) → first element
     fns = await get_child_value(mesh_node, "filename", None)
     if isinstance(fns, (list, tuple)) and fns:
         return str(fns[0])
     if isinstance(fns, str) and fns:
         return fns
 
-    # 2) fallback: Mesh/Files/*/LocalPath → erstes vorhandenes
+    # 2) fallback: Mesh/Files/*/LocalPath → first available
     files_folder = await get_child_by_name(mesh_node, "Files")
     if files_folder:
         for _, fchild in await list_children(files_folder):
@@ -287,7 +283,7 @@ async def resolve_mesh_filename(mesh_node) -> Optional[str]:
                 return str(lp)
     return None
 
-# ----------------- Visual/Collision-Block lesen -----------------
+# ----------------- Read Visual/Collision Block -----------------
 async def build_visual_or_collision(parent_node, tag_name: str,
                                     vis_dir: str, col_dir: str,
                                     link_name: str, urdf_root_dir: str) -> list[ET.Element]:
@@ -301,7 +297,7 @@ async def build_visual_or_collision(parent_node, tag_name: str,
         if not name.lower().startswith(tag_name[:-1].lower()):  # Visual_ / Collision_
             continue
         idx_cnt += 1
-        vc_el = ET.Element(tag_name[:-1])  # 'visual' oder 'collision'
+        vc_el = ET.Element(tag_name[:-1])  # 'visual' or 'collision'
 
         # Origin
         origin_node = await get_child_by_name(viscol, "Origin")
@@ -351,7 +347,7 @@ async def build_visual_or_collision(parent_node, tag_name: str,
                 if radius is not None:
                     ET.SubElement(g_el, "sphere").set("radius", str(radius))
 
-        # Material (nur für Visuals)
+        # Material (only for Visuals)
         if tag_name == "Visuals":
             mat_node = await get_child_by_name(viscol, "Material")
             if mat_node:
@@ -366,7 +362,7 @@ async def build_visual_or_collision(parent_node, tag_name: str,
         out.append(vc_el)
     return out
 
-# ----------------- Links lesen -----------------
+# ----------------- Links  -----------------
 async def read_links(device_node, vis_dir: str, col_dir: str, urdf_root_dir: str) -> list[ET.Element]:
     links_el = []
     links_folder = await get_child_by_name(device_node, "Links")
@@ -378,7 +374,6 @@ async def read_links(device_node, vis_dir: str, col_dir: str, urdf_root_dir: str
             continue
         link_el = ET.Element("link", {"name": lname})
 
-        # Inertial (wie gehabt) ...
         inertial_node = await get_child_by_name(lnode, "Inertial")
         if inertial_node:
             inertial_el = ET.SubElement(link_el, "inertial")
@@ -396,7 +391,7 @@ async def read_links(device_node, vis_dir: str, col_dir: str, urdf_root_dir: str
                 vals = {k: await get_child_value(I, k, None) for k in ("ixx","iyy","izz","ixy","ixz","iyz")}
                 ET.SubElement(inertial_el, "inertia", **{k:str(v) for k,v in vals.items() if v is not None})
 
-        # Visuals / Collisions mit Asset-Export in urdf/meshes/...
+        # Visuals / Collisions with Asset-Export in urdf/meshes/...
         for v_el in await build_visual_or_collision(lnode, "Visuals", vis_dir, col_dir, lname, urdf_root_dir):
             link_el.append(v_el)
         for c_el in await build_visual_or_collision(lnode, "Collisions", vis_dir, col_dir, lname, urdf_root_dir):
@@ -406,7 +401,7 @@ async def read_links(device_node, vis_dir: str, col_dir: str, urdf_root_dir: str
     return links_el
 
 
-# ----------------- Joint-Typ ableiten -----------------
+# ----------------- Derive joint type -----------------
 def joint_type_from_mp(mp_val: Optional[int], joint_type_prop: Optional[str]) -> str:
     if mp_val == 1:   return "revolute"
     if mp_val == 2:   return "continuous"
@@ -425,18 +420,17 @@ async def read_joints(device_node) -> List[ET.Element]:
     if not axes_folder:
         return joints_el
 
-    # Sammle alle Achsknoten außer dem "AdditionalJoints" Ordner
+    # Collect all axis nodes except the “AdditionalJoints” folder
     axis_nodes = []
     add_folder = None
     for name, ch in await list_children(axes_folder):
         if name == "AdditionalJoints":
             add_folder = ch
             continue
-        # nur Objekte namens "Axis*"
+        # only objects named “Axis*”
         if name.startswith("Axis") and await ch.read_node_class() == ua.NodeClass.Object:
             axis_nodes.append(ch)
 
-    # Helper: joint aus einem Axis-Objekt bauen
     async def joint_from_axis(axis_node) -> Optional[ET.Element]:
         jname  = await get_child_value(axis_node, "Name", None)
         parent = await get_child_value(axis_node, "ParentLink", None)
@@ -521,7 +515,7 @@ async def read_joints(device_node) -> List[ET.Element]:
 
         return j_el
 
-    # reguläre Achsen
+    # regular Axis
     for ax in axis_nodes:
         j_el = await joint_from_axis(ax)
         if j_el is not None:
@@ -540,7 +534,7 @@ async def read_joints(device_node) -> List[ET.Element]:
 
     return joints_el
 
-# ----------------- Hauptfunktion: OPC UA → URDF -----------------
+# ----------------- Main function: OPC UA → URDF -----------------
 async def export_urdf_from_server(endpoint: str, out_urdf_path: str):
     client = Client(endpoint)
     await client.connect()
@@ -554,16 +548,16 @@ async def export_urdf_from_server(endpoint: str, out_urdf_path: str):
             bn = await device.read_browse_name()
             urdf_name = bn.Name or "robot"
 
-        # Ordner & endgültigen Pfad vorbereiten
+        # Prepare folder & final path
         urdf_root_dir, out_urdf_final, vis_dir, col_dir = _prepare_urdf_root(out_urdf_path, urdf_name)
 
         robot_el = ET.Element("robot", {"name": urdf_name})
 
-        # Links (mit Asset-Export in urdf/meshes/*)
+        # Links (with asset export to urdf/meshes/*)
         for l_el in await read_links(device, vis_dir, col_dir, urdf_root_dir):
             robot_el.append(l_el)
 
-        # Joints (unverändert)
+        # Joints (unchanged)
         for j_el in await read_joints(device):
             robot_el.append(j_el)
 
@@ -576,24 +570,24 @@ async def export_urdf_from_server(endpoint: str, out_urdf_path: str):
         await client.disconnect()
 
 
-# ----------------- CLI-Beispiel -----------------
+# ----------------- CLI------------------
 if __name__ == "__main__":
     import argparse, sys
 
     parser = argparse.ArgumentParser(
-        description="Exportiert URDF + Meshes aus einem laufenden OPC UA Server."
+        description="Exports URDF + meshes from a running OPC UA server."
     )
     parser.add_argument(
         "endpoint",
-        help="OPC UA Endpoint, z.B. opc.tcp://127.0.0.1:4840",
+        help="OPC UA endpoint, e.g., opc.tcp://127.0.0.1:4840",
     )
     parser.add_argument(
         "-o", "--out",
         dest="out_urdf",
         default="recovered_robot.urdf",
-        help=("Ziel-URDF-Pfad (Datei oder Basisname). "
-              "Die Ausgaben landen in <robot>_description/ mit meshes/visuals und meshes/collisions. "
-              "Standard: recovered_robot.urdf im aktuellen Verzeichnis."),
+        help=("Target URDF path (file or base name). "
+              "The files end up in <robot>_description/ with meshes/visuals and meshes/collisions."
+              "Default: recovered_robot.urdf in the current directory."),
     )
 
     args = parser.parse_args()
@@ -604,10 +598,10 @@ if __name__ == "__main__":
         sys.exit(1)
 
 
-        # Verwendung
+   # Usage
 
-        # Standard: schreibt recovered_robot.urdf und erzeugt <robot>_description/...
-        # python Transformer_OPCUA_2_URDF.py opc.tcp://127.0.0.1:4840
+        # Standard: writes recovered_robot.urdf and creates <robot>_description/...
+        # python OPCUA_2_URDF.py opc.tcp://127.0.0.1:4840
 
-        # # Mit explizitem Zielpfad/Dateiname
-        # python Transformer_OPCUA_2_URDF.py opc.tcp://127.0.0.1:4840 -o C:\pfad\zu\out\my_robot.urdf
+        # With explicit destination path/file name
+        # python OPCUA_2_URDF.py opc.tcp://127.0.0.1:4840 -o C:\pfad\zu\out\my_robot.urdf

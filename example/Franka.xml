@@ -381,8 +381,11 @@
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
     </References>
     <Value>
-  <uax:Int32>1</uax:Int32>
-</Value>
+      <uax:Int32>
+        <uax:Locale />
+        <uax:Text>ROTARY</uax:Text>
+      </uax:Int32>
+    </Value>
   </UAVariable>
   <UAVariable NodeId="ns=1;i=68" BrowseName="3:ActualAcceleration" ParentNodeId="ns=1;i=64" DataType="Double" Historizing="true">
     <DisplayName>ActualAcceleration</DisplayName>
@@ -461,8 +464,11 @@
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
     </References>
     <Value>
-  <uax:Int32>1</uax:Int32>
-</Value>
+      <uax:Int32>
+        <uax:Locale />
+        <uax:Text>ROTARY</uax:Text>
+      </uax:Int32>
+    </Value>
   </UAVariable>
   <UAVariable NodeId="ns=1;i=77" BrowseName="3:ActualAcceleration" ParentNodeId="ns=1;i=73" DataType="Double" Historizing="true">
     <DisplayName>ActualAcceleration</DisplayName>
@@ -541,8 +547,11 @@
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
     </References>
     <Value>
-  <uax:Int32>1</uax:Int32>
-</Value>
+      <uax:Int32>
+        <uax:Locale />
+        <uax:Text>ROTARY</uax:Text>
+      </uax:Int32>
+    </Value>
   </UAVariable>
   <UAVariable NodeId="ns=1;i=86" BrowseName="3:ActualAcceleration" ParentNodeId="ns=1;i=82" DataType="Double" Historizing="true">
     <DisplayName>ActualAcceleration</DisplayName>
@@ -621,8 +630,11 @@
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
     </References>
     <Value>
-  <uax:Int32>1</uax:Int32>
-</Value>
+      <uax:Int32>
+        <uax:Locale />
+        <uax:Text>ROTARY</uax:Text>
+      </uax:Int32>
+    </Value>
   </UAVariable>
   <UAVariable NodeId="ns=1;i=95" BrowseName="3:ActualAcceleration" ParentNodeId="ns=1;i=91" DataType="Double" Historizing="true">
     <DisplayName>ActualAcceleration</DisplayName>
@@ -701,8 +713,11 @@
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
     </References>
     <Value>
-  <uax:Int32>1</uax:Int32>
-</Value>
+      <uax:Int32>
+        <uax:Locale />
+        <uax:Text>ROTARY</uax:Text>
+      </uax:Int32>
+    </Value>
   </UAVariable>
   <UAVariable NodeId="ns=1;i=104" BrowseName="3:ActualAcceleration" ParentNodeId="ns=1;i=100" DataType="Double" Historizing="true">
     <DisplayName>ActualAcceleration</DisplayName>
@@ -781,8 +796,11 @@
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
     </References>
     <Value>
-  <uax:Int32>1</uax:Int32>
-</Value>
+      <uax:Int32>
+        <uax:Locale />
+        <uax:Text>ROTARY</uax:Text>
+      </uax:Int32>
+    </Value>
   </UAVariable>
   <UAVariable NodeId="ns=1;i=113" BrowseName="3:ActualAcceleration" ParentNodeId="ns=1;i=109" DataType="Double" Historizing="true">
     <DisplayName>ActualAcceleration</DisplayName>
@@ -861,8 +879,11 @@
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
     </References>
     <Value>
-  <uax:Int32>1</uax:Int32>
-</Value>
+      <uax:Int32>
+        <uax:Locale />
+        <uax:Text>ROTARY</uax:Text>
+      </uax:Int32>
+    </Value>
   </UAVariable>
   <UAVariable NodeId="ns=1;i=122" BrowseName="3:ActualAcceleration" ParentNodeId="ns=1;i=118" DataType="Double" Historizing="true">
     <DisplayName>ActualAcceleration</DisplayName>

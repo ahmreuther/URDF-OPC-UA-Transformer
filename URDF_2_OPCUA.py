@@ -17,10 +17,10 @@ from typing import Optional
 
 APP_NS_URI = "URDF-Transformer"
 
-# Optional: wenn mehrere Geräte existieren, hier den BrowseName setzen
-DEVICE_NAME = None  # z.B. "Franka" oder None für "erstes gefundenes"
+# Optional: if multiple devices exist, set the BrowseName here
+DEVICE_NAME = None  # e.g., “Franka” or None for “first found”
 
-# UN/CEFACT UnitIds (häufige SI-Einheiten)
+# UN/CEFACT UnitIds (frequently used SI units)
 UNIT_METER_ID = 5066068
 UNIT_RADIAN_ID = 5066062
 UNIT_KILOGRAM_ID = 4408652
@@ -41,9 +41,9 @@ def _derive_mesh_dirs_from_urdf(urdf_path: str) -> tuple[str, str]:
     urdf = URDF.load(urdf_abs)
 
     def norm_rel(p: str) -> str:
-        # package://<pkg>/... entfernen und normalisieren
+        # package://<pkg>/... remove and normalize
         rel = _strip_package_prefix(p).replace("\\", "/")
-        # führende ./ entfernen
+        # leading ./ remove
         if rel.startswith("./"):
             rel = rel[2:]
         return rel
@@ -97,14 +97,14 @@ def _derive_mesh_dirs_from_urdf(urdf_path: str) -> tuple[str, str]:
     def pick_dir(cands: list[str], default_rel: str) -> str:
         if not cands:
             return os.path.join(urdf_dir, "meshes", default_rel)
-        rel_dir = Counter(cands).most_common(1)[0][0]  # häufigster
+        rel_dir = Counter(cands).most_common(1)[0][0]  
         abs_dir = os.path.abspath(os.path.join(urdf_dir, rel_dir))
         return abs_dir
 
     vis_dir = pick_dir(visual_dirs, "visual")
     col_dir = pick_dir(collision_dirs, "collision")
 
-    # Falls Ordner nicht existieren, nicht hart abbrechen – create & weiter
+    # If folders do not exist, do not abort – create & continue
     os.makedirs(vis_dir, exist_ok=True)
     os.makedirs(col_dir, exist_ok=True)
     return vis_dir, col_dir
@@ -122,31 +122,31 @@ def _guess_mime_from_ext(path: str) -> str:
     }.get(ext, "application/octet-stream")
 
 def _sanitize_browsename(name: str) -> str:
-    # OPC UA BrowseNames: keine Slash/Backslash/Steuerzeichen
+    # OPC UA BrowseNames: no slash/backslash/control characters
     safe = "".join(ch if ch.isalnum() or ch in ("_", "-", ".") else "_" for ch in name)
     return safe[:64] if len(safe) > 64 else safe
 
 def _strip_package_prefix(uri: str) -> str:
-    # z.B. "package://fr3_description/meshes/visual/link.dae" -> "meshes/visual/link.dae"
+    # z.B. „package://fr3_description/meshes/visual/link.dae“ -> „meshes/visual/link.dae“
     if uri.startswith("package://"):
         parts = uri[len("package://"):]
-        # Paketname bis zum ersten '/'
+        
         i = parts.find("/")
         return parts[i+1:] if i >= 0 else ""
     return uri
 
 def _try_candidates(base_dir: str, rel_or_name: str) -> Optional[str]:
     """
-    Versucht, eine Mesh-Datei im base_dir zu finden.
-    - Wenn rel_or_name Unterordner enthält, direkt kombinieren
-    - sonst zuerst basename im tree suchen
+   Attempts to find a mesh file in base_dir.
+    - If rel_or_name contains subfolders, combine directly
+    - Otherwise, first search for basename in tree
     """
-    # 1) direkt kombinieren
+    
     p = pathlib.Path(base_dir) / rel_or_name
     if p.exists():
         return str(p)
 
-    # 2) nur nach basename suchen (langsamer, aber robust)
+    
     bn = pathlib.Path(rel_or_name).name
     for root, _, files in os.walk(base_dir):
         if bn in files:
@@ -155,14 +155,13 @@ def _try_candidates(base_dir: str, rel_or_name: str) -> Optional[str]:
 
 def resolve_mesh_path(mesh_uri: str, base_dir: str) -> Optional[str]:
     """
-    URDF-Mesh-URI -> lokaler Pfad im angegebenen base_dir.
-    Unterstützt 'package://' und relative Einträge.
+    URDF mesh URI -> local path in the specified base_dir.
+    ‘package://’ and relative entries.
     """
     if not mesh_uri:
         return None
     rel = _strip_package_prefix(mesh_uri)
-    # Wenn der URDF bereits 'meshes/visual/...' enthält, belassen wir den Rest,
-    # die _try_candidates geht damit robust um.
+    
     return _try_candidates(base_dir, rel)
 
 async def _call_method_by_name(obj, method_name, *args):
@@ -175,9 +174,9 @@ async def _call_method_by_name(obj, method_name, *args):
 
 async def upload_file_to_filetype(file_node, local_path: str, chunk_size=64*1024):
     """
-    Schreibt eine lokale Datei in einen bestehenden FileType-Knoten via Open/Write/Close.
-    Wir gehen davon aus, dass der Knoten die Standard-Methoden implementiert
-    (z. B. wenn er über add_file angelegt wurde).
+    Writes a local file to an existing FileType node via Open/Write/Close.
+We assume that the node implements the standard methods
+(e.g., if it was created using add_file).
     """
     mode = ua.Variant(2 | 4, ua.VariantType.UInt32)  # Write | EraseExisting
     handle = (await _call_method_by_name(file_node, "Open", mode))[0]
@@ -199,27 +198,27 @@ async def ensure_filetype_with_content(server: Server, parent, idx_ns: int,
                                        name: str, local_path: str,
                                        mime: Optional[str] = None):
     """
-    Legt unter 'parent' ein FileType-Objekt (Kind) an – möglichst mit Server-Support – 
-    und lädt die Datei chunked hinein. Fallback: legt Objekt + ByteString 'Content' an.
+   Creates a FileType object (child) under ‘parent’ – with server support if possible – 
+    and loads the file chunked into it. Fallback: creates object + ByteString ‘Content’.
     """
-    # 0) MIME + Größe + Hash vorbereiten
+    # 0) Prepare MIME + size + hash
     mime = mime or _guess_mime_from_ext(local_path)
     size = os.path.getsize(local_path)
     sha256 = None
     with open(local_path, "rb") as f:
         sha256 = hashlib.sha256(f.read()).hexdigest()
 
-    # 1) Versuche: parent.add_file(...) (wenn asyncua das anbietet)
+    # 1) Try: parent.add_file(...) (if asyncua offers this)
     file_node = None
     try:
         add_file = getattr(parent, "add_file", None)
         if add_file is not None and callable(add_file):
-            # initial leer anlegen; danach per Write füllen, damit Open/Write/Close-Pfade genutzt werden
+            # Create empty initially; then fill with Write so that Open/Write/Close paths are used
             file_node = await parent.add_file(idx_ns, name, b"")
     except Exception:
         file_node = None
 
-    # 2) Fallback: explizit FileType-ObjectType instanziieren; notfalls BaseObject
+    # 2) Fallback: explicitly instantiate FileType-ObjectType; if necessary, BaseObject
     if file_node is None:
         try:
             filetype_ot = await resolve_objecttype(server, "FileType", 0)
@@ -234,17 +233,17 @@ async def ensure_filetype_with_content(server: Server, parent, idx_ns: int,
             # letzte Rettung
             file_node = await parent.add_object(idx_ns, name)
 
-    # 3) Metadaten setzen
+    # 3) Set metadata
     await upsert_prop_if_missing(file_node, idx_ns, "MimeType", mime, ua.VariantType.String)
     await upsert_prop_if_missing(file_node, idx_ns, "Size", size, ua.VariantType.UInt64)
     await upsert_prop_if_missing(file_node, idx_ns, "sha256", sha256, ua.VariantType.String)
     await upsert_prop_if_missing(file_node, idx_ns, "LocalPath", local_path, ua.VariantType.String)
 
-    # 4) Inhalt schreiben (bevorzugt via Open/Write/Close)
+    # 4) Write content (preferably via Open/Write/Close)
     try:
         await upload_file_to_filetype(file_node, local_path)
     except Exception:
-        # Fallback: ByteString-Property 'Content' (nicht standardkonform, aber nutzbar)
+        # Fallback: ByteString property ‘Content’ (not standard-compliant, but usable)
         try:
             with open(local_path, "rb") as f:
                 data = f.read()
@@ -257,8 +256,8 @@ async def ensure_filetype_with_content(server: Server, parent, idx_ns: int,
 async def attach_mesh_files_to_meshnode(server: Server, mesh_node, idx_ns: int,
                                         filenames: list[str], base_dir: str):
     """
-    Hängt unterhalb 'mesh_node' einen Ordner 'Files' an. Für jedes filename (URDF) wird,
-    wenn auffindbar, ein FileType-Kind angelegt und die Datei geladen.
+   Adds a ‘Files’ folder below ‘mesh_node’. For each filename (URDF),
+    if found, a FileType child is created and the file is loaded.
     """
     if not filenames:
         return
@@ -266,13 +265,11 @@ async def attach_mesh_files_to_meshnode(server: Server, mesh_node, idx_ns: int,
     for i, fn in enumerate(filenames, start=1):
         local = resolve_mesh_path(fn, base_dir)
         if not local:
-            # Markiere als fehlend, aber lege leeren Eintrag an (zur Diagnose)
             miss = await get_or_create_object(files_folder, idx_ns, _sanitize_browsename(f"Missing_{i}"))
             await upsert_prop_if_missing(miss, idx_ns, "source", str(fn), ua.VariantType.String)
             await upsert_prop_if_missing(miss, idx_ns, "reason", "not found under base_dir", ua.VariantType.String)
             continue
         node_name = _sanitize_browsename(f"{pathlib.Path(local).name}")
-        # Wenn bereits vorhanden, nicht doppelt anlegen
         existing = await find_child_by_browsename(files_folder, node_name)
         if existing is None:
             await ensure_filetype_with_content(server, files_folder, idx_ns, node_name, local, _guess_mime_from_ext(local))
@@ -280,14 +277,12 @@ async def attach_mesh_files_to_meshnode(server: Server, mesh_node, idx_ns: int,
 
 async def find_motion_profile_node(axis_node):
     """
-    Sucht 'MotionProfile' zuerst direkt am Axis, dann im 'ParameterSet'.
-    Gibt den Knoten zurück oder None.
+    Searches for ‘MotionProfile’ first directly on the Axis, then in the ‘ParameterSet’.
+    Returns the node or None.
     """
-    # direkt am Axis?
     mp = await get_child_variable_by_name(axis_node, "MotionProfile")
     if mp is not None:
         return mp
-    # im ParameterSet?
     ps = await find_child_by_browsename(axis_node, "ParameterSet")
     if ps is not None:
         mp = await get_child_variable_by_name(ps, "MotionProfile")
@@ -304,21 +299,22 @@ async def ensure_motion_profile_property(
     write_if_exists: bool,
 ):
     """
-    - Sucht MotionProfile (Axis oder ParameterSet).
-    - Wenn vorhanden:
-        - write_if_exists=False  -> niemals schreiben (bestehende Achse)
-        - write_if_exists=True   -> Wert setzen (Endeff-Achse neu)
-    - Wenn nicht vorhanden:
-        - Property am Axis anlegen und initialen Wert setzen (falls value_int != None).
+    - Searches for MotionProfile (Axis or ParameterSet).
+    
+    - If present: 
+    - write_if_exists=False  -> never write (existing axis)
+    - write_if_exists=True   -> set value (new end axis)
+    - If not present:
+    - Create property on axis and set initial value (if value_int != None).
     """
-    # 1) existierendes suchen (Axis zuerst, dann ParameterSet)
+    # 1) Search for existing (Axis first, then ParameterSet)
     mp = await get_child_variable_by_name(axis_node, "MotionProfile")
     if mp is None:
         ps = await find_child_by_browsename(axis_node, "ParameterSet")
         if ps is not None:
             mp = await get_child_variable_by_name(ps, "MotionProfile")
 
-    # 2) existiert → ggf. schreiben
+    # 2) exists → write if necessary
     if mp is not None:
         if write_if_exists and (value_int is not None):
             try:
@@ -327,7 +323,7 @@ async def ensure_motion_profile_property(
                 pass
         return mp
 
-    # 3) existiert NICHT → neu **am Axis** anlegen (nur wenn wir einen sinnvollen Wert haben)
+    # 3) does NOT exist → create new **at Axis** (only if we have a meaningful value)
     if value_int is None:
         return None
 
@@ -393,7 +389,7 @@ async def resolve_datatype(server: Server, name: str, ns_index: int | None):
 def mp_from_urdf(urdf_joint_type: str):
     """
     AxisMotionProfileEnumeration:
-      OTHER=0, ROTARY=1, ROTARY_ENDLESS=2, LINEAR=3, LINEAR_ENDLESS=4
+    OTHER=0, ROTARY=1, ROTARY_ENDLESS=2, LINEAR=3, LINEAR_ENDLESS=4
     """
     t = (urdf_joint_type or "").lower()
     if t == "revolute":
@@ -402,7 +398,7 @@ def mp_from_urdf(urdf_joint_type: str):
         return 2
     if t == "prismatic":
         return 3
-    # fixed / floating / planar → keine Achse; falls doch: OTHER
+    # fixed / floating / planar → no axis; if so: OTHER
     return 0
 
 
@@ -410,8 +406,8 @@ async def safe_add_axis_object(
     parent, idx_ns: int, browsename: str, axis_type_node
 ):
     """
-    Instanziiert AxisType **ohne optionale Kinder** (instantiate_optional=False).
-    Fallback: BaseObject, falls AxisType nicht verfügbar.
+    Instantiates AxisType **without optional children** (instantiate_optional=False).
+    Fallback: BaseObject if AxisType is not available.
     """
     if axis_type_node is not None:
         try:
@@ -419,7 +415,7 @@ async def safe_add_axis_object(
                 idx_ns,
                 browsename,
                 objecttype=axis_type_node.nodeid,
-                instantiate_optional=False,  # <<< nur Pflichtkinder
+                instantiate_optional=False,  # <<< only compulsory children
             )
         except UaStatusCodeError:
             pass
@@ -453,9 +449,9 @@ async def upsert_enum_var_if_missing(
     enum_datatype_nodeid: ua.NodeId | None,
 ):
     """
-    Legt eine Enum-Variable (Int32) an, falls sie nicht existiert.
-    Setzt den DataType auf die Enum (AxisMotionProfileEnumeration), wenn verfügbar.
-    Überschreibt NIE bestehende Werte.
+    Creates an enum variable (Int32) if it does not exist.
+    Sets the DataType to the enum (AxisMotionProfileEnumeration) if available.
+    NEVER overwrites existing values.
     """
     var = await get_child_variable_by_name(parent, name)
     if var is None:
@@ -467,7 +463,7 @@ async def upsert_enum_var_if_missing(
             try:
                 await var.set_data_type(enum_datatype_nodeid)
             except Exception:
-                pass  # falls Nodeset anders heißt, einfach Int32 lassen
+                pass  # if Nodeset has a different name, just leave Int32
     return var
 
 
@@ -475,8 +471,8 @@ async def upsert_prop_if_missing(
     parent, idx_ns, name, value, varianttype=ua.VariantType.Double
 ):
     """
-    Legt eine **Property** (kein normales Variable-Node) an, falls nicht vorhanden.
-    Überschreibt NIE bestehende.
+   Creates a **property** (not a normal variable node) if it does not exist.
+    NEVER overwrites existing ones.
     """
     var = await get_child_variable_by_name(parent, name)
     if var is None:
@@ -505,8 +501,8 @@ async def upsert_enum_prop_if_missing(
     enum_datatype_nodeid: ua.NodeId | None,
 ):
     """
-    Legt eine **Property** (Int32) an, setzt DataType auf Enum, falls vorhanden.
-    Überschreibt NIE bestehende.
+    Creates a **property** (Int32), sets DataType to Enum if available.
+    NEVER overwrites existing ones.
     """
     prop = await get_child_variable_by_name(parent, name)
     if prop is None:
@@ -531,8 +527,8 @@ async def add_eu_prop(parent, idx_ns, name, value,
     eu = ua.EUInformation()
     eu.NamespaceUri = "http://www.opcfoundation.org/UA/units/un/cefact"
     eu.UnitId = unit_id
-    eu.DisplayName = ua.LocalizedText(unit_symbol)   # z.B. "m"
-    eu.Description = ua.LocalizedText(unit_name)     # z.B. "metre"
+    eu.DisplayName = ua.LocalizedText(unit_symbol)   
+    eu.Description = ua.LocalizedText(unit_name)     
 
     await prop.add_property(0, "EngineeringUnits",
                             ua.Variant(eu, ua.VariantType.ExtensionObject))
@@ -566,7 +562,7 @@ async def upsert_var_if_missing(
     parent, idx_ns, name, value, varianttype=ua.VariantType.Double
 ):
     """
-    Lege eine Variable an, falls sie NICHT existiert. Setze KEINEN Wert, wenn sie schon existiert.
+    Create a variable if it does NOT exist. Do NOT set a value if it already exists.
     """
     var = await get_child_variable_by_name(parent, name)
     if var is None:
@@ -600,8 +596,8 @@ async def add_eu_var(parent, idx_ns, name, value,
     eu = ua.EUInformation()
     eu.NamespaceUri = "http://www.opcfoundation.org/UA/units/un/cefact"
     eu.UnitId = unit_id
-    eu.DisplayName = ua.LocalizedText(unit_symbol)   # z.B. "kg"
-    eu.Description = ua.LocalizedText(unit_name)     # z.B. "kilogram"
+    eu.DisplayName = ua.LocalizedText(unit_symbol)   
+    eu.Description = ua.LocalizedText(unit_name)    
 
     await var.add_property(0, "EngineeringUnits",
                            ua.Variant(eu, ua.VariantType.ExtensionObject))
@@ -609,7 +605,7 @@ async def add_eu_var(parent, idx_ns, name, value,
 
 
 def rpy_from_T(T: np.ndarray):
-    """Roll, Pitch, Yaw (rad) aus 4x4-Homogenmatrix, Konvention ZYX."""
+    """Roll, pitch, yaw (rad) from 4x4 homogeneous matrix, convention ZYX."""
     sy = math.sqrt(T[0, 0] ** 2 + T[1, 0] ** 2)
     if sy < 1e-12:
         roll = math.atan2(-T[1, 2], T[1, 1])
@@ -631,7 +627,7 @@ def to_list(obj):
 
 
 async def find_child_by_browsename(parent_node, name: str):
-    """Direktes Kind mit passendem BrowseName.Name (NS egal)."""
+    """Direct child with matching BrowseName.Name (NS irrelevant)."""
     for child in await parent_node.get_children():
         qn = await child.read_browse_name()
         if qn.Name == name:
@@ -641,8 +637,8 @@ async def find_child_by_browsename(parent_node, name: str):
 
 async def find_motion_device_from_system(mds_node, preferred_name: str | None):
     """
-    Erwartet einen MotionDeviceSystem-Knoten, sucht darin:
-    MotionDevices -> (optional: preferred_name) -> erstes MotionDevice-Objekt.
+ Expects a MotionDeviceSystem node, searches within it:
+    MotionDevices -> (optional: preferred_name) -> first MotionDevice object.
     """
     mdevs_folder = await find_child_by_browsename(mds_node, "MotionDevices")
     if not mdevs_folder:
@@ -668,14 +664,13 @@ async def resolve_motion_device_node(
 ):
     """
     Robust:
-    - Wenn ein importierter Knoten bereits ein MotionDevice ist, nutze ihn.
-    - Wenn es ein MotionDeviceSystem ist, wähle darinnen das MotionDevice.
-    - Falls unklar, suche in der Objects-Hierarchie nach 'MotionDeviceSystem'/'MotionDevices'.
+    - If an imported node is already a MotionDevice, use it.
+    - If it is a MotionDeviceSystem, select the MotionDevice within it.
+    - If unclear, search the Objects hierarchy for ‘MotionDeviceSystem’/'MotionDevices'.
     """
-    # 1) Direkte Kandidaten durchgehen
+    # 1) Review direct candidates
     for nid in inst_nodes:
         node = server.get_node(nid)
-        # Hat der Knoten Kinder 'MotionDevices'? -> System
         try:
             mdev = await find_motion_device_from_system(node, preferred_name)
             if mdev:
@@ -683,14 +678,13 @@ async def resolve_motion_device_node(
         except Exception:
             pass
 
-        # Sieht der Knoten bereits wie ein Device aus? (heuristisch: hat 'Axes' o. Ä.)
         try:
             if await find_child_by_browsename(node, "Axes"):
                 return node
         except Exception:
             pass
 
-    # 2) Breitensuche ab Objects
+    # 2) Broad search from objects
     queue = [server.nodes.objects]
     seen = set()
     while queue:
@@ -699,7 +693,6 @@ async def resolve_motion_device_node(
             continue
         seen.add(cur.nodeid)
         try:
-            # Wenn dies das System ist, wähle das Device
             mdev = await find_motion_device_from_system(cur, preferred_name)
             if mdev:
                 return mdev
@@ -710,22 +703,21 @@ async def resolve_motion_device_node(
         except Exception:
             pass
 
-    # 3) Fallback: erster importierter Node
+    # 3) Fallback: first imported node
     return server.get_node(inst_nodes[0])
 
 
 # ----------------------------- URDF → AddressSpace --------------------------------
 async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUAL_MESH_DIR: str,COLLISION_MESH_DIR: str):
     """
-    URDF-Struktur unterhalb des MotionDevice-Knotens anlegen:
+    Create URDF structure below the MotionDevice node:
     - URDF/{Links,Joints,Transmissions,Frames}
-    - Axes (falls nicht vorhanden) ergänzen
+    - Add Axes (if not already present)
     """
     idx_app = await server.register_namespace(APP_NS_URI)
-
-    # 1) URDF laden
+    # 1) Load URDF
     urdf = URDF.load(urdf_path)
-    # Name des URDF-Roboters als Property speichern (Namespace: APP_NS_URI)
+    # Save the name of the URDF robot as a property (namespace: APP_NS_URI)
     name_prop = await device_node.add_property(
         idx_app, "URDFName", urdf.name, ua.VariantType.String
     )
@@ -811,7 +803,6 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                     visuals_node, idx_app, f"Visual_{idx}"
                 )
 
-                # optionale Benennung
                 vname = getattr(vis, "name", None)
                 if vname:
                     await upsert_prop_if_missing(
@@ -875,12 +866,10 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                             await upsert_prop_if_missing(mesh_node, idx_app, "scale",
                                                         [float(s) for s in scale_list], ua.VariantType.Double)
 
-                        #FileType-Nodes + Upload unterhalb des Mesh-Knotens
                         await attach_mesh_files_to_meshnode(server, mesh_node, idx_app, [str(f) for f in filenames], VISUAL_MESH_DIR)
 
                     # --- Box ---
                     box = getattr(geom, "box", None)
-                    # Fallback: size direkt an geometry
                     box_size = (
                         getattr(box, "size", None)
                         if box is not None
@@ -983,7 +972,6 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                     collisions_node, idx_app, f"Collision_{idx}"
                 )
 
-                # optionale Benennung
                 cname = getattr(col, "name", None)
                 if cname:
                     await upsert_prop_if_missing(
@@ -1101,7 +1089,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                         await upsert_eu_prop_if_missing(sph_node, idx_app, "radius",
                                 float(sph_radius), "m", "metre", UNIT_METER_ID)
 
-    # 3) Axes unter dem *MotionDevice* (Companion-Spec-konform) --------------------------------
+    # 3) Axes under the *MotionDevice* (Companion Spec compliant) --------------------------------
     axes_folder = await find_child_by_browsename(device_node, "Axes")
     if axes_folder is None:
         axes_folder = await device_node.add_folder(idx_app, "Axes")
@@ -1116,14 +1104,14 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
     )
     mp_enum_nodeid = mp_enum_node.nodeid if mp_enum_node else None
 
-    # --- Kinematische Reihenfolge der DoF-Joints aus joint_map bestimmen
+    # --- Determine the kinematic order of the DoF joints from joint_map
     joint_map = dict(urdf.joint_map)  # name -> Joint
-    # Eltern->Kinder-Joints nach Parent-Link aufbauen
+    # Establish parent->child joints after Parent-Link
     parent_to_joints = {}
     for j in joint_map.values():
         parent_to_joints.setdefault(j.parent, []).append(j)
 
-    # BFS ab base_link über die Joint-Edges
+    # BFS from base_link via the joint edges
     base_link_name = (
         urdf.base_link.name if hasattr(urdf, "base_link") else "base_link"
     )
@@ -1139,7 +1127,6 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
             ordered_joints_all.append(j)
             queue.append(j.child)
 
-    # DoF-Joints (mit MotionProfile-Korrespondenz) in kinematischer Reihenfolge
     ordered_dof = [
         j
         for j in ordered_joints_all
@@ -1147,7 +1134,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
     ]
     all_joints = list(joint_map.values())
 
-    # existierende Achsen (Ordner 'AdditionalJoints' überspringen)
+    # existing axes (skip folder ‘AdditionalJoints’)
     existing_axes = []
     for child in await axes_folder.get_children():
         if await child.read_node_class() != ua.NodeClass.Object:
@@ -1158,7 +1145,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
         if qn.Name.startswith("Axis"):
             existing_axes.append(child)
 
-    # --- Achsen-Joint-Zuordnung strikt per kinematischer Reihenfolge (kein Überschreiben von MotionProfile!)
+    # --- Strict axis joint assignment according to kinematic order (no overwriting of MotionProfile!)
     assigned = []
     for i, axis_node in enumerate(existing_axes):
         j = ordered_dof[i] if i < len(ordered_dof) else None
@@ -1166,17 +1153,16 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
 
     matched = {j for _, j in assigned if j is not None}
 
-    # --- 3a) Bestehende Achsen befüllen (MotionProfile nie überschreiben)
+    # --- 3a) Fill existing axes (never overwrite MotionProfile)
     for axis_node, j in assigned:
         if j is None:
             continue
 
         linear = (j.joint_type == "prismatic")
 
-        # ParameterSet sicherstellen (leer)
         _ = await get_or_create_object(axis_node, idx_app, "ParameterSet")
 
-        # MotionProfile: nur anlegen falls fehlt
+        # MotionProfile: only create if missing
         mp_val = mp_from_urdf(j.joint_type)
         await ensure_motion_profile_property(
             axis_node, idx_app, mp_val, mp_enum_nodeid, write_if_exists=False
@@ -1187,12 +1173,12 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                 axis_node, idx_app, "JointType", str(j.joint_type or "unknown"), ua.VariantType.String
             )
 
-        # Grunddaten am Axis (diese Felder gibt es im URDF immer)
+        # Basic data at the axis (these fields are always present in the URDF)
         await upsert_prop_if_missing(axis_node, idx_app, "Name", j.name, ua.VariantType.String)
         await upsert_prop_if_missing(axis_node, idx_app, "ParentLink", j.parent, ua.VariantType.String)
         await upsert_prop_if_missing(axis_node, idx_app, "ChildLink",  j.child,  ua.VariantType.String)
 
-        # Axis-Richtung: nur wenn im URDF eine Achse angegeben ist
+        # Axis direction: only if an axis is specified in the URDF
         if getattr(j, "axis", None) is not None:
             axis_vec = list(j.axis)
             await upsert_prop_if_missing(
@@ -1200,7 +1186,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                 [float(a) for a in axis_vec], ua.VariantType.Double
             )
 
-        # Origin: nur wenn im URDF vorhanden
+        # Origin: only if present in URDF
         if getattr(j, "origin", None) is not None:
             T = j.origin
             r, p, y = rpy_from_T(T)
@@ -1211,7 +1197,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
             )
             await upsert_prop_if_missing(origin_node, idx_app, "rpy", [r, p, y], ua.VariantType.Double)
 
-        # Limit: nur wenn <limit> existiert; jede Property einzeln prüfen
+        # Limit: only if <limit> exists; check each property individually
         lim = getattr(j, "limit", None)
         if lim is not None:
             lower   = getattr(lim, "lower",    None)
@@ -1242,7 +1228,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                 if effort is not None:
                     await upsert_prop_if_missing(limit_node, idx_app, "effort", float(effort), ua.VariantType.Double)
 
-        # Calibration: nur wenn vorhanden
+        # Calibration: only if available
         cal = getattr(j, "calibration", None)
         if cal is not None:
             rising  = getattr(cal, "rising",  None)
@@ -1252,7 +1238,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                 if rising  is not None: await upsert_prop_if_missing(cal_node, idx_app, "rising",  float(rising))
                 if falling is not None: await upsert_prop_if_missing(cal_node, idx_app, "falling", float(falling))
 
-        # Dynamics: nur wenn vorhanden
+        # Dynamics: only if available
         dyn = getattr(j, "dynamics", None)
         if dyn is not None:
             damping  = getattr(dyn, "damping",  None)
@@ -1262,7 +1248,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                 if damping  is not None: await upsert_prop_if_missing(dyn_node, idx_app, "damping",  float(damping))
                 if friction is not None: await upsert_prop_if_missing(dyn_node, idx_app, "friction", float(friction))
 
-        # Mimic: nur wenn vorhanden
+        # Mimic: only if available
         mimic = getattr(j, "mimic", None)
         if mimic is not None:
             m_joint  = getattr(mimic, "joint",      None)
@@ -1274,7 +1260,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                 if m_multi  is not None: await upsert_prop_if_missing(mim_node, idx_app, "multiplier", float(m_multi))
                 if m_offset is not None: await upsert_prop_if_missing(mim_node, idx_app, "offset",     float(m_offset))
 
-        # SafetyController: nur wenn vorhanden
+        # SafetyController: only if available
         sc = getattr(j, "safety_controller", None)
         if sc is not None:
             sll = getattr(sc, "soft_lower_limit", None)
@@ -1301,7 +1287,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                     await upsert_prop_if_missing(sc_node, idx_app, "k_position", float(kp))
 
 
-    # --- 3b) AdditionalJoints: alle URDF-Joints, die NICHT den vorhandenen Achsen zugeordnet wurden
+    # --- 3b) AdditionalJoints: all URDF joints that have NOT been assigned to existing axes
     extra_joints = [j for j in all_joints if j not in matched]
     if extra_joints:
         add_folder = await get_or_create_folder(axes_folder, idx_app, "AdditionalJoints")
@@ -1318,12 +1304,12 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                     axis_obj, idx_app, "JointType", str(j.joint_type or "unknown"), ua.VariantType.String
                 )
 
-            # Grunddaten (Name/Parent/Child existieren immer)
+            # Basic data (Name/Parent/Child always exist)
             await upsert_prop_if_missing(axis_obj, idx_app, "Name", j.name, ua.VariantType.String)
             await upsert_prop_if_missing(axis_obj, idx_app, "ParentLink", j.parent, ua.VariantType.String)
             await upsert_prop_if_missing(axis_obj, idx_app, "ChildLink",  j.child,  ua.VariantType.String)
 
-            # Axis nur wenn vorhanden
+            # Axis only if available
             if getattr(j, "axis", None) is not None:
                 axis_vec = list(j.axis)
                 await upsert_prop_if_missing(
@@ -1331,7 +1317,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                     [float(a) for a in axis_vec], ua.VariantType.Double
                 )
 
-            # Origin nur wenn vorhanden
+            # Origin only if available
             if getattr(j, "origin", None) is not None:
                 T = j.origin
                 r, p, y = rpy_from_T(T)
@@ -1342,7 +1328,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                 )
                 await upsert_prop_if_missing(origin_node, idx_app, "rpy", [r, p, y], ua.VariantType.Double)
 
-            # Limit nur wenn vorhanden
+            # Limit only if available
             lim = getattr(j, "limit", None)
             if lim is not None:
                 lower   = getattr(lim, "lower",    None)
@@ -1372,7 +1358,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                     if effort is not None:
                         await upsert_prop_if_missing(limit_node, idx_app, "effort", float(effort), ua.VariantType.Double)
 
-            # Calibration nur wenn vorhanden
+            # Calibration only if available
             cal = getattr(j, "calibration", None)
             if cal is not None:
                 rising  = getattr(cal, "rising",  None)
@@ -1382,7 +1368,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                     if rising  is not None: await upsert_prop_if_missing(cal_node, idx_app, "rising",  float(rising))
                     if falling is not None: await upsert_prop_if_missing(cal_node, idx_app, "falling", float(falling))
 
-            # Dynamics nur wenn vorhanden
+            # Dynamics only if available
             dyn = getattr(j, "dynamics", None)
             if dyn is not None:
                 damping  = getattr(dyn, "damping",  None)
@@ -1392,7 +1378,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                     if damping  is not None: await upsert_prop_if_missing(dyn_node, idx_app, "damping",  float(damping))
                     if friction is not None: await upsert_prop_if_missing(dyn_node, idx_app, "friction", float(friction))
 
-            # Mimic nur wenn vorhanden
+            # Mimic only if available
             mimic = getattr(j, "mimic", None)
             if mimic is not None:
                 m_joint  = getattr(mimic, "joint",      None)
@@ -1404,7 +1390,7 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
                     if m_multi  is not None: await upsert_prop_if_missing(mim_node, idx_app, "multiplier", float(m_multi))
                     if m_offset is not None: await upsert_prop_if_missing(mim_node, idx_app, "offset",     float(m_offset))
 
-            # SafetyController nur wenn vorhanden
+            # SafetyController only if available
             sc = getattr(j, "safety_controller", None)
             if sc is not None:
                 sll = getattr(sc, "soft_lower_limit", None)
@@ -1432,8 +1418,8 @@ async def build_urdf_structure(server: Server, device_node, urdf_path: str,VISUA
 
 async def _collect_all_nodes(client: Client, allowed_ns: set[int] | None = None):
     """
-    BFS über den kompletten Address Space (ab RootFolder).
-    Sammeln von Node-Objekten (keine NodeIds!). Optional nur bestimmte Namespaces exportieren.
+    BFS across the entire address space (starting from the root folder).
+    Collect node objects (not node IDs!). Optionally, export only specific namespaces.
     """
     root = client.get_node(ObjectIds.RootFolder)
     queue = [root]
@@ -1451,11 +1437,11 @@ async def _collect_all_nodes(client: Client, allowed_ns: set[int] | None = None)
             result.append(node)
 
         try:
-            # Alle referenzierten Knoten traversieren (vorwärts/rückwärts)
+            # Traverse all referenced nodes (forward/backward)
             refs = await node.get_referenced_nodes()
             queue.extend(refs)
         except Exception:
-            # Manche Server verweigern bestimmte Verweise – einfach überspringen
+            # Some servers refuse certain links – just skip them
             pass
 
     return result
@@ -1477,7 +1463,6 @@ async def export_with_opcua_client(endpoint_url: str, out_path: str,
         allowed_ns = {namespace} if namespace is not None else None
         nodes = await _collect_all_nodes(client, allowed_ns)
 
-        # <-- HIER Werte aktivieren
         exporter = XmlExporter(client, export_values=include_values)
         await exporter.build_etree(nodes)
         await exporter.write_xml(out_path)
@@ -1490,19 +1475,19 @@ async def export_with_opcua_client(endpoint_url: str, out_path: str,
 async def main():
     # --- CLI ---
     parser = argparse.ArgumentParser(description="URDF -> OPC UA (und NodeSet-Export)")
-    parser.add_argument("urdf_path", help="Pfad zur URDF-Datei")
-    parser.add_argument("robot_xml", help="Pfad zur Roboter-Instanz-XML (z. B. Franka.xml)")
+    parser.add_argument("urdf_path", help="Path to the URDF file")
+    parser.add_argument("robot_xml", help="Path to the robot instance XML (e.g., Franka.xml)")
     args = parser.parse_args()
 
     URDF_PATH = os.path.abspath(args.urdf_path)
     ROBOT_XML = os.path.abspath(args.robot_xml)
 
     if not os.path.isfile(URDF_PATH):
-        raise FileNotFoundError(f"URDF nicht gefunden: {URDF_PATH}")
+        raise FileNotFoundError(f"URDF not found: {URDF_PATH}")
     if not os.path.isfile(ROBOT_XML):
-        raise FileNotFoundError(f"Roboter-Instanz-XML nicht gefunden: {ROBOT_XML}")
+        raise FileNotFoundError(f"Robot instance XML not found: {ROBOT_XML}")
 
-    # Mesh-Ordner aus URDF bestimmen
+    # Determine mesh folder from URDF
     VISUAL_MESH_DIR, COLLISION_MESH_DIR = _derive_mesh_dirs_from_urdf(URDF_PATH)
 
     server = Server()
@@ -1510,32 +1495,32 @@ async def main():
     server.set_endpoint("opc.tcp://127.0.0.1:4840")
     server.set_server_name("URDF-Transformer")
 
-    # Typ-NodeSets laden (Foundation/DI/etc. → Robotics/Companion → eigene)
-    for f in ["Devices.xml", "Robots.xml"]:
+    # Load type node sets (Foundation/DI/etc. → Robotics/Companion → own)
+    for f in ["Opc.Ua.Di.NodeSet2.xml", "Opc.Ua.Robotics.NodeSet2.xml"]:
         await server.import_xml(f)
 
-    # Instanzen laden (dynamisch per CLI)
+    # Load instances (dynamically via CLI)
     inst_nodes = await server.import_xml(ROBOT_XML)
     if not inst_nodes:
-        raise RuntimeError(f"Keine Instanzen aus {ROBOT_XML} importiert.")
+        raise RuntimeError(f"No instances imported from {ROBOT_XML}.")
 
-    # *** Wichtig: Das *MotionDevice* bestimmen ***
+    # *** Important: Determine the *MotionDevice* ***
     device_node = await resolve_motion_device_node(server, inst_nodes, DEVICE_NAME)
 
-    # URDF-Struktur unter dem MotionDevice anlegen (mit automatisch erkannten Mesh-Dirs)
+    # Create URDF structure under MotionDevice (with automatically detected mesh directories)
     await build_urdf_structure(server, device_node, URDF_PATH, VISUAL_MESH_DIR, COLLISION_MESH_DIR)
 
-    # Export-Dateiname dynamisch aus der Instanz-XML ableiten
+    # Dynamically derive export file name from instance XML
     base = os.path.splitext(os.path.basename(ROBOT_XML))[0]
     out_file = f"{base}_URDF_enriched.NodeSet2.xml"
     endpoint = "opc.tcp://127.0.0.1:4840"
 
     async with server:
         await asyncio.sleep(0.3)
-        print("Exportiere Nodeset (inkl. Werte). Bitte warten...")
+        print("Export node set (including values). Please wait...")
         await export_with_opcua_client(endpoint, out_file, include_values=True)
-        print(f"Nodeset exportiert nach: {os.path.abspath(out_file)}")
-        # Server laufen lassen (falls gewünscht); hier kurz halten oder entfernen
+        print(f"Nodeset exports to: {os.path.abspath(out_file)}")
+        # Run servers (if desired); keep brief or remove
         while True:
             await asyncio.sleep(1)
 
@@ -1544,7 +1529,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 
 
-    # Aufruf aus terminal:
-    # python Transformer_URDF_2_OPCUA.py "C:\Pfad\zu\deinem\roboter.urdf" "C:\Pfad\zur\Instanz\MeinRoboter.xml"
+    # Call from terminal:
+    # python URDF_2_OPCUA.py "C:\Pfad\zu\deinem\roboter.urdf" "C:\Pfad\zur\Instanz\MeinRoboter.xml"
 
 
