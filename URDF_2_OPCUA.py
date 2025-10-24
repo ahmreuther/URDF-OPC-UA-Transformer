@@ -1,3 +1,11 @@
+"""
+Filename: URDF_2_OPCUA.py
+Author: Adrian Reuther
+Date: 2025-10-25
+Version: 1.0.0
+Description: Mapping of a URDF bundle into an OPC UA Address Space (Robotics Companion Spec).
+"""
+
 import asyncio
 import logging
 import math

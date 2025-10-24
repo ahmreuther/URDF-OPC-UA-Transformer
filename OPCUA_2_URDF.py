@@ -1,3 +1,11 @@
+"""
+Filename: OPCUA_2_URDF.py
+Author: Adrian Reuther
+Date: 2025-10-25
+Version: 1.0.0
+Description: Extracts a URDF bundle from an URDF-enriched OPC UA Address Space (Robotics Companion Spec).
+"""
+
 import asyncio
 import os, pathlib, base64
 from typing import Optional, List, Tuple
